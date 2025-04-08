@@ -1,218 +1,155 @@
-from flask import Flask, render_template_string
-import sqlite3
-import random
-from datetime import datetime, timedelta
+from flask import Flask, render_template
+from db.connection import get_db_connection
+from db.seed_data import seed
+import plotly.graph_objs as go
+import plotly
+import json
 
-
-# Генератор случайных номеров телефона
-def generate_phone():
-    return '+79' + ''.join(random.choices('0123456789', k=9))
-
-# Создаем подключение к базе данных (файл my_database.db будет создан)
-connection = sqlite3.connect('my_database.db')
-cursor = connection.cursor()
-cursor.executescript('''
-DROP TABLE IF EXISTS client_x_account;
-DROP TABLE IF EXISTS program_product_session;
-DROP TABLE IF EXISTS orig_delivery;
-DROP TABLE IF EXISTS financial_transaction;
-''')
-
-# Таблица client_x_account
-cursor.execute('''
-CREATE TABLE client_x_account (
-    account_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER UNIQUE NOT NULL,
-    phone_no TEXT,
-    name TEXT,
-    gender_cd TEXT,
-    created_dttm DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted_flg BOOLEAN DEFAULT 0
-)
-''')
-
-# Таблица program_product_session
-cursor.execute('''
-CREATE TABLE program_product_session (
-    session_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER NOT NULL,
-    business_dt DATE,
-    os_type_code TEXT,
-    app_version REAL,
-    FOREIGN KEY (client_id) REFERENCES client_x_account(client_id)
-)
-''')
-
-# Таблица orig_delivery
-cursor.execute('''
-CREATE TABLE orig_delivery (
-    meeting_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER NOT NULL,
-    task_type_code TEXT,
-    task_status_code TEXT,
-    task_success_flg BOOLEAN,
-    task_create_dttm DATETIME,
-    meeting_start_dttm DATETIME,
-    FOREIGN KEY (client_id) REFERENCES client_x_account(client_id)
-)
-''')
-
-# Таблица financial_transaction
-cursor.execute('''
-CREATE TABLE financial_transaction (
-    transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id INTEGER NOT NULL,
-    transaction_amt REAL,
-    transaction_dttm DATETIME,
-    transaction_status_code TEXT,
-    currency_code TEXT,
-    rejected_flg BOOLEAN DEFAULT 0,
-    FOREIGN KEY (account_id) REFERENCES client_x_account(account_id)
-)
-''')
-
-time = datetime.now()
-names = ['Alexander Petrov', 'Fedor Ivanov', 'Vasiliy Frolov', 'Alice Ivanova', 'Boris Petrov', 'Svetlana Orlova', 'Ivan Smirnov', 'Elena Volkova']
-genders = ['M', 'M', 'M', 'F', 'M', 'F', 'M', 'F']
-client_ids = [1001 + i for i in range(len(names))]
-now = datetime.now()
-
-# client_x_account
-account_ids = []
-for i in range(len(client_ids)):
-    cursor.execute('''
-        INSERT INTO client_x_account (client_id, phone_no, name, gender_cd, created_dttm)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (
-        client_ids[i],
-        generate_phone(),
-        names[i],
-        genders[i],
-        now - timedelta(days=random.randint(0, 365))
-    ))
-    account_ids.append(cursor.lastrowid)
-
-
-# program_product_session (по 128 сессий на клиента)
-for client_id in client_ids:
-    for _ in range(128):
-        cursor.execute('''
-            INSERT INTO program_product_session (client_id, business_dt, os_type_code, app_version)
-            VALUES (?, ?, ?, ?)
-        ''', (
-            client_id,
-            (now - timedelta(days=random.randint(0, 60))).date(),
-            random.choice(['iOS', 'Android']),
-            random.choice([1.618, 2.72, 3.14, 5.55])
-        ))
-
-# orig_delivery (по 16 задач на клиента)
-for client_id in client_ids:
-    for _ in range(16):
-        start_time = now - timedelta(days=random.randint(0, 30), minutes=random.randint(0, 60))
-        cursor.execute('''
-            INSERT INTO orig_delivery (
-                client_id, task_type_code, task_status_code, task_success_flg, 
-                task_create_dttm, meeting_start_dttm
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            client_id,
-            random.choice(['Debit Card', 'Installation', 'Agent Visit']),
-            random.choice(['Done', 'Pending', 'Cancelled']),
-            random.choice([0, 1]),
-            start_time,
-            start_time + timedelta(minutes=random.randint(10, 60))
-        ))
-
-# financial_transaction (по 64 транзакций на аккаунт)
-for account_id in account_ids:
-    for _ in range(64):
-        cursor.execute('''
-            INSERT INTO financial_transaction (
-                account_id, transaction_amt, transaction_dttm,
-                transaction_status_code, currency_code, rejected_flg
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            account_id,
-            round(random.uniform(100, 5000), 2),
-            now - timedelta(days=random.randint(0, 90)),
-            random.choice(['Success', 'Pending', 'Failed']),
-            random.choice(['RUB', 'USD', 'EUR', 'KZT']),
-            random.choice([0, 1])
-        ))
-
-
-
-
-
-cursor.execute("SELECT COUNT(client_id), strftime ('%D',timestamp) FROM Authorizations GROUP BY 2")
-
-data = cursor.fetchall()
-
-# Сохраняем изменения и закрываем соединение
-connection.commit()
-
-connection.close()
 
 app = Flask(__name__)
 
 
-# Normally you'd have this in the templates directory but for simplicity of
-# putting everything into one file for an example, I'm using a template string
+def get_sessions_by_version():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT
+            pps.business_dt,
+            pps.app_version,
+            COUNT(DISTINCT pps.session_id) as session_cnt
+        FROM program_product_session pps
+        GROUP BY 1, 2
+        ORDER BY 1
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
 
-template = """
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    # Группируем по версии
+    version_data = {}
+    for row in rows:
+        version = row['app_version']
+        dt = row['business_dt']
+        count = row['session_cnt']
+        version_data.setdefault(version, {}).setdefault(dt, 0)
+        version_data[version][dt] += count
 
-<div id="plot_div" style="width: 100%; height: 100%"></div>
+    # Получаем уникальные даты
+    dates = sorted({dt for version in version_data.values() for dt in version.keys()})
 
-<script type="text/javascript">
+    # Создаём traces по версиям
+    traces = []
+    for version, data in version_data.items():
+        y_values = [data.get(dt, 0) for dt in dates]
+        traces.append(go.Bar(x=dates, y=y_values, name=f'v{version}'))
 
-var trace1 = {
-    x: {{ plot_data.x_axis }},
-    y: {{ plot_data.y_axis }},
-    type: 'scatter',
-    name: 'Example'
-};
+    layout = go.Layout(
+        title='Сессии по дням в разбивке по версии приложения',
+        barmode='stack',
+        xaxis=dict(title='Дата'),
+        yaxis=dict(title='Кол-во сессий')
+    )
 
-var layout = {
-    title: "Test",
-    titlefont: {
-            family: 'Poppins',
-            size: 18,
-            color: '#7f7f7f'
-        },
-    showlegend: true,
-    xaxis: {
-        title: 'Axis Unit',
-    },
-    yaxis: {
-        title: 'Other Axis Unit',
-    },
-    margin: {
-        l: 70,
-        r: 40,
-        b: 50,
-        t: 50,
-        pad: 4
-    }
-};
-var data = [trace1];
+    return go.Figure(data=traces, layout=layout)
 
-Plotly.newPlot("plot_div", data, layout);
 
-</script>
-"""
+def get_transaction_sums():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT
+            DATE(ftr.transaction_dttm) as dt,
+            SUM(ftr.transaction_amt) as total
+        FROM financial_transaction ftr
+        GROUP BY 1
+        ORDER BY 1
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
 
-def get_plot_data():
-    x = list(range(10))
-    y = [random.randint(0, 100) for i in range(10)]
-    return {'x_axis': x, 'y_axis': y}
+    x = [row['dt'] for row in rows]
+    y = [row['total'] for row in rows]
+
+    fig = go.Figure(data=[go.Bar(x=x, y=y)])
+    fig.update_layout(
+        title='Сумма транзакций по дням',
+        xaxis_title='Дата',
+        yaxis_title='Сумма'
+    )
+    return fig
+
+
+def get_tasks_by_type():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT
+            DATE(del.task_create_dttm) as dt,
+            del.task_type_code,
+            COUNT(DISTINCT del.meeting_id) as cnt
+        FROM orig_delivery del
+        GROUP BY 1, 2
+        ORDER BY 1
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    type_data = {}
+    for row in rows:
+        code = row['task_type_code']
+        dt = row['dt']
+        cnt = row['cnt']
+        type_data.setdefault(code, {}).setdefault(dt, 0)
+        type_data[code][dt] += cnt
+
+    all_dates = sorted({dt for type_dict in type_data.values() for dt in type_dict})
+
+    traces = []
+    for code, data in type_data.items():
+        y_values = [data.get(dt, 0) for dt in all_dates]
+        traces.append(go.Scatter(x=all_dates, y=y_values, mode='lines+markers', name=code))
+
+    layout = go.Layout(
+        title='Количество задач по дням в разбивке по типу задачи',
+        xaxis=dict(title='Дата'),
+        yaxis=dict(title='Кол-во задач')
+    )
+
+    return go.Figure(data=traces, layout=layout)
+
+
+@app.route('/seed')
+def seed_route():
+    seed()
+    return 'Данные успешно загружены'
+
 
 @app.route('/')
 def home():
-    plot_data = get_plot_data()
-    return render_template_string(template,
-                                  plot_data=plot_data)
+    fig1 = get_sessions_by_version()
+    fig2 = get_transaction_sums()
+    fig3 = get_tasks_by_type()
+
+    return render_template('index.html',
+                           graph1=json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder),
+                           graph2=json.dumps(fig2, cls=plotly.utils.PlotlyJSONEncoder),
+                           graph3=json.dumps(fig3, cls=plotly.utils.PlotlyJSONEncoder))
+
+
+def is_db_empty():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM client_x_account")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count == 0
+
 
 if __name__ == '__main__':
-    app.run()
+    if is_db_empty():
+        print("База пуста, заполняем seed-данными...")
+        seed()  # Инициализация базы при запуске
+    app.run(debug=True)
+
+# if __name__ == '__main__':
+#     seed()
+#     app.run(debug=True)

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Аналитика клиентов</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .btn-group {
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            border: none;
+            background-color: #007BFF;
+            color: white;
+            border-radius: 5px;
+        }
+
+        .btn.active {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Визуализация клиентских данных</h1>
+    <div class="btn-group">
+        <button class="btn active" onclick="showGraph('graph1')">Сессии по версиям</button>
+        <button class="btn" onclick="showGraph('graph2')">Сумма транзакций</button>
+        <button class="btn" onclick="showGraph('graph3')">Задачи по типам</button>
+    </div>
+
+    <div id="graph1" class="graph-container"></div>
+    <div id="graph2" class="graph-container" style="display: none;"></div>
+    <div id="graph3" class="graph-container" style="display: none;"></div>
+</div>
+
+<script>
+    const graphs = {
+        graph1: {{ graph1 | safe }},
+        graph2: {{ graph2 | safe }},
+        graph3: {{ graph3 | safe }}
+    };
+
+    for (const id in graphs) {
+        Plotly.newPlot(id, graphs[id].data, graphs[id].layout);
+    }
+
+    function showGraph(targetId) {
+        document.querySelectorAll('.graph-container').forEach(div => {
+            div.style.display = 'none';
+        });
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById(targetId).style.display = 'block';
+        event.target.classList.add('active');
+    }
+</script>
+</body>
+</html>

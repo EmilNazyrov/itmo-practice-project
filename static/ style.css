@@ -1,0 +1,24 @@
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f7f7f7;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    padding: 2rem;
+    max-width: 1000px;
+    margin: auto;
+    background: #fff;
+    box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    border-radius: 12px;
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+#plot_div {
+    height: 500px;
+}
