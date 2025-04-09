@@ -4,6 +4,16 @@ from db.seed_data import seed
 import plotly.graph_objs as go
 import plotly
 import json
+# import os
+import logging
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 app = Flask(__name__)
@@ -120,11 +130,12 @@ def get_tasks_by_type():
 @app.route('/seed')
 def seed_route():
     seed()
-    return 'Данные успешно загружены'
+    return 'Data loaded successfully'
 
 
 @app.route('/')
 def home():
+    logger.info('Processing request to home page')
     fig1 = get_sessions_by_version()
     fig2 = get_transaction_sums()
     fig3 = get_tasks_by_type()
@@ -135,21 +146,28 @@ def home():
                            graph3=json.dumps(fig3, cls=plotly.utils.PlotlyJSONEncoder))
 
 
-def is_db_empty():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM client_x_account")
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count == 0
+# def is_db_empty():
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT COUNT(*) FROM client_x_account")
+#     count = cursor.fetchone()[0]
+#     conn.close()
+#     return count == 0
 
-
-if __name__ == '__main__':
-    if is_db_empty():
-        print("База пуста, заполняем seed-данными...")
-        seed()  # Инициализация базы при запуске
-    app.run(debug=True)
 
 # if __name__ == '__main__':
-#     seed()
+#     if not os.path.exists('my_database.db'):  # Путь к базе данных
+#         logger.info('Файл базы данных не найден, создаем и заполняем...')
+#         seed()
+#     elif is_db_empty():
+#         logger.info('База пуста — заполняем seed-данными...')
+#         seed()
+#     else:
+#         logger.info('База уже содержит данные, пропускаем seed')
 #     app.run(debug=True)
+
+if __name__ == '__main__':
+    logger.info('Filling the database with synthetic data...')
+    seed()  # Инициализация базы при запуске
+    logger.info('Launching Flask application...')
+    app.run(debug=True)

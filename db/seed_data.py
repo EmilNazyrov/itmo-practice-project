@@ -22,8 +22,8 @@ def seed():
 
     # Таблица client_x_account
     cursor.execute('''
-    CREATE TABLE client_x_account (
-        account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    CREATE TABLE IF NOT EXISTS client_x_account (
+        account_id TEXT PRIMARY KEY,
         client_id TEXT UNIQUE NOT NULL,
         phone_no TEXT,
         name TEXT,
@@ -35,7 +35,7 @@ def seed():
 
     # Таблица program_product_session
     cursor.execute('''
-    CREATE TABLE program_product_session (
+    CREATE TABLE IF NOT EXISTS program_product_session (
         session_id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id TEXT NOT NULL,
         business_dt DATE,
@@ -47,7 +47,7 @@ def seed():
 
     # Таблица orig_delivery
     cursor.execute('''
-    CREATE TABLE orig_delivery (
+    CREATE TABLE IF NOT EXISTS orig_delivery (
         meeting_id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id TEXT NOT NULL,
         task_type_code TEXT,
@@ -61,9 +61,9 @@ def seed():
 
     # Таблица financial_transaction
     cursor.execute('''
-    CREATE TABLE financial_transaction (
+    CREATE TABLE IF NOT EXISTS financial_transaction (
         transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        account_id INTEGER NOT NULL,
+        account_id TEXT NOT NULL,
         transaction_amt REAL,
         transaction_dttm DATETIME,
         transaction_status_code TEXT,
@@ -76,27 +76,26 @@ def seed():
     names = ['Alexander Petrov', 'Fedor Ivanov', 'Vasiliy Frolov', 'Alice Ivanova', 'Boris Petrov', 'Svetlana Orlova', 'Ivan Smirnov', 'Elena Volkova']
     genders = ['M', 'M', 'M', 'F', 'M', 'F', 'M', 'F']
     # client_ids = [1001 + i for i in range(len(names))]
-    client_ids = []
-    for _ in range(len(names)):
-        client_id = str(uuid.uuid4())  # UUID как строка
-        client_ids.append(client_id)
+    client_ids = [str(uuid.uuid4()) for _ in range(len(names))]  # UUID как строка
 
     now = datetime.now()
 
     # client_x_account
     account_ids = []
     for i in range(len(client_ids)):
+        account_id = str(uuid.uuid4())
         cursor.execute('''
-            INSERT INTO client_x_account (client_id, phone_no, name, gender_cd, created_dttm)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO client_x_account (account_id, client_id, phone_no, name, gender_cd, created_dttm)
+            VALUES (?, ?, ?, ?, ?, ?)
         ''', (
+            account_id,
             client_ids[i],
             generate_phone(),
             names[i],
             genders[i],
             now - timedelta(days=random.randint(0, 365))
         ))
-        account_ids.append(cursor.lastrowid)
+        account_ids.append(account_id)
 
     # program_product_session (по 128 сессий на клиента)
     for client_id in client_ids:
@@ -145,6 +144,16 @@ def seed():
                 random.choice(['RUB', 'USD', 'EUR', 'KZT']),
                 random.choice([0, 1])
             ))
+
+    # Индексы
+    cursor.executescript('''
+        CREATE INDEX IF NOT EXISTS idx_client_id ON client_x_account(client_id);
+        CREATE INDEX IF NOT EXISTS idx_pps_client_id ON program_product_session(client_id);
+        CREATE INDEX IF NOT EXISTS idx_pps_business_dt ON program_product_session(business_dt);
+        CREATE INDEX IF NOT EXISTS idx_od_client_id ON orig_delivery(client_id);
+        CREATE INDEX IF NOT EXISTS idx_ft_account_id ON financial_transaction(account_id);
+        CREATE INDEX IF NOT EXISTS idx_ft_dttm ON financial_transaction(transaction_dttm);
+    ''')
 
     conn.commit()
     conn.close()
