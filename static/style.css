@@ -1,0 +1,134 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #222;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    height: 100vh;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.dark-theme {
+    background-color: #1e1e1e;
+    color: #ddd;
+}
+
+#sidebar {
+    width: 250px;
+    background-color: #ffffff;
+    padding: 20px;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+}
+
+.dark-theme #sidebar {
+    background-color: #2c2c2c;
+}
+
+.main-content {
+    flex-grow: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+.graph-container {
+    background-color: white;
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: opacity 0.5s ease-in;
+}
+
+.dark-theme .graph-container {
+    background-color: #2c2c2c;
+}
+
+.fade-in {
+    opacity: 1 !important;
+}
+
+.graph-container:not(.fade-in) {
+    opacity: 0;
+}
+
+.filters {
+    margin-top: 20px;
+}
+
+.filters select {
+    width: 100%;
+    padding: 6px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+
+.dark-theme .filters select {
+    background-color: #444;
+    color: #eee;
+    border: 1px solid #666;
+}
+
+.btn-group {
+    margin-bottom: 20px;
+}
+
+.btn {
+    padding: 10px 16px;
+    margin-right: 8px;
+    background-color: #ddd;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn:hover {
+    background-color: #bbb;
+}
+
+.btn.active {
+    background-color: #888;
+    color: white;
+}
+
+.dark-theme .btn {
+    background-color: #444;
+    color: #ccc;
+}
+
+.dark-theme .btn.active {
+    background-color: #777;
+    color: white;
+}
+
+#theme-toggle {
+    cursor: pointer;
+    margin-top: 20px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.loading-spinner {
+    display: none;
+    margin-top: 20px;
+    width: 40px;
+    height: 40px;
+    border: 6px solid #ccc;
+    border-top-color: #444;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.dark-theme .loading-spinner {
+    border: 6px solid #555;
+    border-top-color: #fff;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

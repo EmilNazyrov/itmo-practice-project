@@ -1,65 +1,143 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Аналитика клиентов</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .btn-group {
-            margin-bottom: 20px;
-        }
-
-        .btn {
-            padding: 10px 15px;
-            margin-right: 10px;
-            cursor: pointer;
-            border: none;
-            background-color: #007BFF;
-            color: white;
-            border-radius: 5px;
-        }
-
-        .btn.active {
-            background-color: #0056b3;
-        }
-    </style>
 </head>
 <body>
-<div class="container">
-    <h1>Визуализация клиентских данных</h1>
-    <div class="btn-group">
-        <button class="btn active" onclick="showGraph('graph1')">Сессии по версиям</button>
-        <button class="btn" onclick="showGraph('graph2')">Сумма транзакций</button>
-        <button class="btn" onclick="showGraph('graph3')">Задачи по типам</button>
+    <div id="sidebar">
+        <div id="theme-toggle">
+            <span id="theme-icon" onclick="toggleTheme()">🌙</span> Переключить тему
+        </div>
+        <div class="filters">
+            <h3>Фильтры</h3>
+            <!-- Фильтр по версиям приложения -->
+            <div class="filter-group">
+                <label for="version-filter">Версия приложения:</label>
+                <select id="version-filter">
+                    <option value="all">Все версии</option>
+                    {% for version in versions %}
+                        <option value="{{ version }}">{{ version }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Фильтр по типам задач -->
+            <div class="filter-group">
+                <label for="task-type-filter">Тип задачи:</label>
+                <select id="task-type-filter">
+                    <option value="all">Все типы задач</option>
+                    {% for task_type in task_types %}
+                        <option value="{{ task_type }}">{{ task_type }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
     </div>
 
-    <div id="graph1" class="graph-container"></div>
-    <div id="graph2" class="graph-container" style="display: none;"></div>
-    <div id="graph3" class="graph-container" style="display: none;"></div>
-</div>
+    <div class="main-content">
+        <h1>Визуализация клиентских данных</h1>
+        <div class="btn-group">
+            <button class="btn active" onclick="showGraph('graph1', this)">Сессии по версиям</button>
+            <button class="btn" onclick="showGraph('graph2', this)">Сумма транзакций</button>
+            <button class="btn" onclick="showGraph('graph3', this)">Задачи по типам</button>
+        </div>
 
-<script>
-    const graphs = {
-        graph1: {{ graph1 | safe }},
-        graph2: {{ graph2 | safe }},
-        graph3: {{ graph3 | safe }}
-    };
+        <div id="graph1" class="graph-container fade-in"></div>
+        <div id="graph2" class="graph-container" style="display: none;"></div>
+        <div id="graph3" class="graph-container" style="display: none;"></div>
 
-    for (const id in graphs) {
-        Plotly.newPlot(id, graphs[id].data, graphs[id].layout);
-    }
+        <div id="loading-spinner" class="loading-spinner"></div>
+    </div>
 
-    function showGraph(targetId) {
-        document.querySelectorAll('.graph-container').forEach(div => {
-            div.style.display = 'none';
+    <script>
+        const graphs = {
+            graph1: {{ graph1 | safe }},
+            graph2: {{ graph2 | safe }},
+            graph3: {{ graph3 | safe }}
+        };
+
+        const versionFilter = document.getElementById('version-filter');
+        const taskTypeFilter = document.getElementById('task-type-filter');
+        let currentVersionFilter = 'all';
+        let currentTaskTypeFilter = 'all';
+
+        function showGraph(targetId, button) {
+            document.querySelectorAll('.graph-container').forEach(div => {
+                div.style.display = 'none';
+                div.classList.remove('fade-in');
+            });
+
+            document.querySelectorAll('.btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            const target = document.getElementById(targetId);
+            target.style.display = 'block';
+            setTimeout(() => target.classList.add('fade-in'), 10);
+
+            if (button) button.classList.add('active');
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-theme');
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = document.body.classList.contains('dark-theme') ? '🌞' : '🌙';
+        }
+
+        function applyFilters() {
+            const filteredGraph1 = filterGraph1(graphs.graph1);
+            const filteredGraph2 = graphs.graph2;  // Без фильтров
+            const filteredGraph3 = filterGraph3(graphs.graph3);
+
+            Plotly.react('graph1', filteredGraph1.data, filteredGraph1.layout);
+            Plotly.react('graph2', filteredGraph2.data, filteredGraph2.layout);
+            Plotly.react('graph3', filteredGraph3.data, filteredGraph3.layout);
+        }
+
+        function filterGraph1(graph) {
+            let filteredData = graph.data;
+
+            if (currentVersionFilter !== 'all') {
+                filteredData = filteredData.filter(item =>
+                    item.meta?.[0] === String(currentVersionFilter)
+                );
+            }
+
+            return { data: filteredData, layout: graph.layout };
+        }
+
+        function filterGraph3(graph) {
+            let filteredData = graph.data;
+
+            if (currentTaskTypeFilter !== 'all') {
+                filteredData = filteredData.filter(item =>
+                    item.meta?.[0] === currentTaskTypeFilter
+                );
+            }
+
+            return { data: filteredData, layout: graph.layout };
+        }
+
+        versionFilter.addEventListener('change', () => {
+            currentVersionFilter = versionFilter.value;
+            applyFilters();
         });
-        document.querySelectorAll('.btn').forEach(btn => {
-            btn.classList.remove('active');
+
+        taskTypeFilter.addEventListener('change', () => {
+            currentTaskTypeFilter = taskTypeFilter.value;
+            applyFilters();
         });
-        document.getElementById(targetId).style.display = 'block';
-        event.target.classList.add('active');
-    }
-</script>
+
+        window.addEventListener('load', () => {
+            document.getElementById('loading-spinner').style.display = 'block';
+            for (const id in graphs) {
+                Plotly.newPlot(id, graphs[id].data, graphs[id].layout);
+            }
+            document.getElementById('loading-spinner').style.display = 'none';
+        });
+    </script>
 </body>
 </html>

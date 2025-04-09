@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from db.connection import get_db_connection
 from db.seed_data import seed
 import plotly.graph_objs as go
@@ -16,25 +16,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-app = Flask(__name__)
+# app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 
 
-def get_sessions_by_version():
+def get_sessions_by_version(version=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
+
+    query = '''
         SELECT
             pps.business_dt,
             pps.app_version,
             COUNT(DISTINCT pps.session_id) as session_cnt
         FROM program_product_session pps
-        GROUP BY 1, 2
-        ORDER BY 1
-    ''')
+    '''
+
+    if version:
+        query += " WHERE pps.app_version = ?"
+
+    query += " GROUP BY 1, 2 ORDER BY 1"
+
+    if version:
+        cursor.execute(query, (version,))
+    else:
+        cursor.execute(query)
+
     rows = cursor.fetchall()
     conn.close()
 
-    # Группируем по версии
+    # Группировка по версиям и создание traces
     version_data = {}
     for row in rows:
         version = row['app_version']
@@ -43,14 +54,19 @@ def get_sessions_by_version():
         version_data.setdefault(version, {}).setdefault(dt, 0)
         version_data[version][dt] += count
 
-    # Получаем уникальные даты
     dates = sorted({dt for version in version_data.values() for dt in version.keys()})
 
-    # Создаём traces по версиям
     traces = []
     for version, data in version_data.items():
         y_values = [data.get(dt, 0) for dt in dates]
-        traces.append(go.Bar(x=dates, y=y_values, name=f'v{version}'))
+        traces.append(go.Bar(
+            x=dates,
+            y=y_values,
+            name=f'v{version}',
+            hovertemplate='Дата: %{x}<br>Сессий: %{y}<br>Версия: %{meta}',
+            # meta=[version] * len(dates)
+            meta=[str(version)] * len(dates)
+        ))
 
     layout = go.Layout(
         title='Сессии по дням в разбивке по версии приложения',
@@ -116,7 +132,18 @@ def get_tasks_by_type():
     traces = []
     for code, data in type_data.items():
         y_values = [data.get(dt, 0) for dt in all_dates]
-        traces.append(go.Scatter(x=all_dates, y=y_values, mode='lines+markers', name=code))
+        # traces.append(go.Scatter(x=all_dates, y=y_values, mode='lines+markers', name=code))
+        traces.append(go.Scatter(
+            x=all_dates,
+            y=y_values,
+            mode='lines+markers',
+            name=code,
+            hovertemplate='Дата: %{x}<br>Задач: %{y}<br>Тип: %{meta}',
+            meta=[code] * len(all_dates)
+            # customdata=[code] * len(all_dates),
+            # hovertemplate='Дата: %{x}<br>Задач: %{y}<br>Тип: %{customdata}',
+            # meta={'taskType': code}
+        ))
 
     layout = go.Layout(
         title='Количество задач по дням в разбивке по типу задачи',
@@ -133,6 +160,26 @@ def seed_route():
     return 'Data loaded successfully'
 
 
+@app.route('/get_versions')
+def get_versions():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT app_version FROM program_product_session")
+    versions = [row['app_version'] for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(versions)
+
+
+@app.route('/get_task_types')
+def get_task_types():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT task_type_code FROM orig_delivery")
+    task_types = [row['task_type_code'] for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(task_types)
+
+
 @app.route('/')
 def home():
     logger.info('Processing request to home page')
@@ -140,10 +187,24 @@ def home():
     fig2 = get_transaction_sums()
     fig3 = get_tasks_by_type()
 
+    # Получаем список версий и типов задач
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT DISTINCT app_version FROM program_product_session")
+    versions = [row['app_version'] for row in cursor.fetchall()]
+
+    cursor.execute("SELECT DISTINCT task_type_code FROM orig_delivery")
+    task_types = [row['task_type_code'] for row in cursor.fetchall()]
+
+    conn.close()
+
     return render_template('index.html',
                            graph1=json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder),
                            graph2=json.dumps(fig2, cls=plotly.utils.PlotlyJSONEncoder),
-                           graph3=json.dumps(fig3, cls=plotly.utils.PlotlyJSONEncoder))
+                           graph3=json.dumps(fig3, cls=plotly.utils.PlotlyJSONEncoder),
+                           versions=versions,
+                           task_types=task_types)
 
 
 # def is_db_empty():
