@@ -46,7 +46,8 @@ project/
 
 | Светлая тема | Тёмная тема |
 |-------------|-------------|
-| ![light](https://github.com/user-attachments/assets/f9f78df2-d110-444c-a07d-277bb30aa5b4) | ![dark](https://github.com/user-attachments/assets/6f49d2ff-3001-438d-bffd-ba1063a0be3c)
+| ![light](https://github.com/user-attachments/assets/5415b4e0-afe0-4d37-ac11-faa83e01fcb7) | ![dark](https://github.com/user-attachments/assets/6f49d2ff-3001-438d-bffd-ba1063a0be3c) 
+
 
 
 ## 💡 Примечания
