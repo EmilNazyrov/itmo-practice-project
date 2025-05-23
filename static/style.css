@@ -53,8 +53,12 @@ body {
     opacity: 0;
 }
 
-.filters {
-    margin-top: 20px;
+.filters input[type="date"] {
+    width: 100%;
+    padding: 6px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
 }
 
 .filters select {
@@ -65,7 +69,7 @@ body {
     border: 1px solid #ccc;
 }
 
-.dark-theme .filters select {
+.dark-theme .filters input[type="date"] {
     background-color: #444;
     color: #eee;
     border: 1px solid #666;
@@ -131,4 +135,53 @@ body {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* Стили для фильтра по дате */
+.filter-group label {
+    display: block;
+    margin-top: 16px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.filter-group input[type="date"] {
+    width: 100%;
+    padding: 6px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+}
+
+.dark-theme .filter-group input[type="date"] {
+    background-color: #444;
+    color: #eee;
+    border: 1px solid #666;
+}
+
+/* Кнопка сброса фильтров */
+#reset-filters {
+    margin-top: 20px;
+    width: 100%;
+    padding: 10px;
+    background-color: #e74c3c;
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#reset-filters:hover {
+    background-color: #c0392b;
+}
+
+.dark-theme #reset-filters {
+    background-color: #aa2e2e;
+}
+
+.dark-theme #reset-filters:hover {
+    background-color: #912222;
 }

@@ -13,6 +13,7 @@
         </div>
         <div class="filters">
             <h3>Фильтры</h3>
+
             <!-- Фильтр по версиям приложения -->
             <div class="filter-group">
                 <label for="version-filter">Версия приложения:</label>
@@ -33,6 +34,19 @@
                         <option value="{{ task_type }}">{{ task_type }}</option>
                     {% endfor %}
                 </select>
+            </div>
+
+            <!-- Фильтр по диапазону дат -->
+            <div class="filter-group">
+                <label for="start-date">С:</label>
+                <input type="date" id="start-date">
+                <label for="end-date">По:</label>
+                <input type="date" id="end-date">
+            </div>
+
+            <!-- Кнопка сброса -->
+            <div class="filter-group">
+                <button onclick="resetFilters()">Сбросить фильтры</button>
             </div>
         </div>
     </div>
@@ -59,8 +73,12 @@
             graph3: {{ graph3 | safe }}
         };
 
+        const startDateInput = document.getElementById('start-date');
+        const endDateInput = document.getElementById('end-date');
         const versionFilter = document.getElementById('version-filter');
         const taskTypeFilter = document.getElementById('task-type-filter');
+        let currentStartDate = null;
+        let currentEndDate = null;
         let currentVersionFilter = 'all';
         let currentTaskTypeFilter = 'all';
 
@@ -89,12 +107,26 @@
 
         function applyFilters() {
             const filteredGraph1 = filterGraph1(graphs.graph1);
-            const filteredGraph2 = graphs.graph2;  // Без фильтров
+            const filteredGraph2 = filterGraph2(graphs.graph2);
             const filteredGraph3 = filterGraph3(graphs.graph3);
 
             Plotly.react('graph1', filteredGraph1.data, filteredGraph1.layout);
             Plotly.react('graph2', filteredGraph2.data, filteredGraph2.layout);
             Plotly.react('graph3', filteredGraph3.data, filteredGraph3.layout);
+        }
+
+        function resetFilters() {
+            currentVersionFilter = 'all';
+            currentTaskTypeFilter = 'all';
+            currentStartDate = null;
+            currentEndDate = null;
+
+            versionFilter.value = 'all';
+            taskTypeFilter.value = 'all';
+            startDateInput.value = '';
+            endDateInput.value = '';
+
+            applyFilters();
         }
 
         function filterGraph1(graph) {
@@ -104,6 +136,46 @@
                 filteredData = filteredData.filter(item =>
                     item.meta?.[0] === String(currentVersionFilter)
                 );
+            }
+
+            if (currentStartDate || currentEndDate) {
+                filteredData = filteredData.map(trace => {
+                    const x = [];
+                    const y = [];
+                    for (let i = 0; i < trace.x.length; i++) {
+                        const date = new Date(trace.x[i]);
+                        const afterStart = !currentStartDate || date >= new Date(currentStartDate);
+                        const beforeEnd = !currentEndDate || date <= new Date(currentEndDate);
+                        if (afterStart && beforeEnd) {
+                            x.push(trace.x[i]);
+                            y.push(trace.y[i]);
+                        }
+                    }
+                    return { ...trace, x, y };
+                });
+            }
+
+            return { data: filteredData, layout: graph.layout };
+        }
+
+        function filterGraph2(graph) {
+            let filteredData = graph.data;
+
+            if (currentStartDate || currentEndDate) {
+                filteredData = filteredData.map(trace => {
+                    const x = [];
+                    const y = [];
+                    for (let i = 0; i < trace.x.length; i++) {
+                        const date = new Date(trace.x[i]);
+                        const afterStart = !currentStartDate || date >= new Date(currentStartDate);
+                        const beforeEnd = !currentEndDate || date <= new Date(currentEndDate);
+                        if (afterStart && beforeEnd) {
+                            x.push(trace.x[i]);
+                            y.push(trace.y[i]);
+                        }
+                    }
+                    return { ...trace, x, y };
+                });
             }
 
             return { data: filteredData, layout: graph.layout };
@@ -118,8 +190,35 @@
                 );
             }
 
+            if (currentStartDate || currentEndDate) {
+                filteredData = filteredData.map(trace => {
+                    const x = [];
+                    const y = [];
+                    for (let i = 0; i < trace.x.length; i++) {
+                        const date = new Date(trace.x[i]);
+                        const afterStart = !currentStartDate || date >= new Date(currentStartDate);
+                        const beforeEnd = !currentEndDate || date <= new Date(currentEndDate);
+                        if (afterStart && beforeEnd) {
+                            x.push(trace.x[i]);
+                            y.push(trace.y[i]);
+                        }
+                    }
+                    return { ...trace, x, y };
+                });
+            }
+
             return { data: filteredData, layout: graph.layout };
         }
+
+        startDateInput.addEventListener('change', () => {
+            currentStartDate = startDateInput.value;
+            applyFilters();
+        });
+
+        endDateInput.addEventListener('change', () => {
+            currentEndDate = endDateInput.value;
+            applyFilters();
+        });
 
         versionFilter.addEventListener('change', () => {
             currentVersionFilter = versionFilter.value;

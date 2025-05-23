@@ -1,12 +1,10 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from db.connection import get_db_connection
 from db.seed_data import seed
 import plotly.graph_objs as go
 import plotly
 import json
-# import os
 import logging
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,32 +13,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# app = Flask(__name__)
 app = Flask(__name__, static_folder='static')
 
 
-def get_sessions_by_version(version=None):
+def get_sessions_by_version(version_filter=None, date_from=None, date_to=None):
     conn = get_db_connection()
     cursor = conn.cursor()
 
     query = '''
         SELECT
-            pps.business_dt,
+            pps.business_dt as dt,
             pps.app_version,
             COUNT(DISTINCT pps.session_id) as session_cnt
         FROM program_product_session pps
+        WHERE 1 = 1
     '''
 
-    if version:
-        query += " WHERE pps.app_version = ?"
+    params = []
+    if version_filter:
+        query += " AND pps.app_version = ?"
+        params.append(version_filter)
+    if date_from:
+        query += " AND pps.business_dt >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND pps.business_dt < ?"
+        params.append(date_to)
 
     query += " GROUP BY 1, 2 ORDER BY 1"
-
-    if version:
-        cursor.execute(query, (version,))
-    else:
-        cursor.execute(query)
+    cursor.execute(query, params)
 
     rows = cursor.fetchall()
     conn.close()
@@ -48,74 +49,117 @@ def get_sessions_by_version(version=None):
     # Группировка по версиям и создание traces
     version_data = {}
     for row in rows:
-        version = row['app_version']
-        dt = row['business_dt']
+        ver = row['app_version']
+        dt = row['dt']
         count = row['session_cnt']
-        version_data.setdefault(version, {}).setdefault(dt, 0)
-        version_data[version][dt] += count
+        version_data.setdefault(ver, {}).setdefault(dt, 0)
+        version_data[ver][dt] += count
 
-    dates = sorted({dt for version in version_data.values() for dt in version.keys()})
+    dates = sorted({dt for ver in version_data.values() for dt in ver.keys()})
 
     traces = []
-    for version, data in version_data.items():
+    for ver, data in version_data.items():
         y_values = [data.get(dt, 0) for dt in dates]
         traces.append(go.Bar(
             x=dates,
             y=y_values,
-            name=f'v{version}',
+            name=f'v{ver}',
             hovertemplate='Дата: %{x}<br>Сессий: %{y}<br>Версия: %{meta}',
-            # meta=[version] * len(dates)
-            meta=[str(version)] * len(dates)
+            meta=[str(ver)] * len(dates)
         ))
 
     layout = go.Layout(
         title='Сессии по дням в разбивке по версии приложения',
         barmode='stack',
         xaxis=dict(title='Дата'),
-        yaxis=dict(title='Кол-во сессий')
+        yaxis=dict(title='Кол-во сессий'),
+        width=1024
     )
 
     return go.Figure(data=traces, layout=layout)
 
 
-def get_transaction_sums():
+def get_transaction_sums(date_from=None, date_to=None, alpha=0.2):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        SELECT
-            DATE(ftr.transaction_dttm) as dt,
-            SUM(ftr.transaction_amt) as total
-        FROM financial_transaction ftr
-        GROUP BY 1
-        ORDER BY 1
-    ''')
+
+    query = """
+            SELECT
+                DATE(ftr.transaction_dttm) as dt,
+                SUM(ftr.transaction_amt) as total
+            FROM financial_transaction ftr
+        """
+
+    params = []
+    if date_from:
+        query += " AND ftr.transaction_dttm >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND ftr.transaction_dttm < ?"
+        params.append(date_to)
+
+    query += " GROUP BY 1 ORDER BY 1"
+
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 
     x = [row['dt'] for row in rows]
     y = [row['total'] for row in rows]
 
-    fig = go.Figure(data=[go.Bar(x=x, y=y)])
+    # Расчет EMA вручную
+    ema = []
+    for i, val in enumerate(y):
+        if i == 0:
+            ema.append(val)
+        else:
+            ema_val = alpha * val + (1 - alpha) * ema[-1]
+            ema.append(ema_val)
+
+    # Создаем график
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(x=x, y=y, name='Сумма транзакций'))
+    fig.add_trace(go.Scatter(x=x, y=ema, mode='lines', name=f'EMA (скользящее среднее)'))
+
     fig.update_layout(
         title='Сумма транзакций по дням',
         xaxis_title='Дата',
-        yaxis_title='Сумма'
+        yaxis_title='Сумма',
+        hovermode='x unified',
+        barmode='overlay',
+        width=1024
     )
     return fig
 
 
-def get_tasks_by_type():
+def get_tasks_by_type(task_type=None, date_from=None, date_to=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        SELECT
-            DATE(del.task_create_dttm) as dt,
-            del.task_type_code,
-            COUNT(DISTINCT del.meeting_id) as cnt
-        FROM orig_delivery del
-        GROUP BY 1, 2
-        ORDER BY 1
-    ''')
+
+    query = """
+            SELECT
+                DATE(del.task_create_dttm) as dt,
+                del.task_type_code,
+                COUNT(DISTINCT del.meeting_id) as cnt
+            FROM orig_delivery del
+            WHERE 1 = 1
+        """
+
+    params = []
+    if task_type:
+        query += " AND del.task_type_code = ?"
+        params.append(task_type)
+    if date_from:
+        query += " AND del.task_create_dttm >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND del.task_create_dttm < ?"
+        params.append(date_to)
+
+    query += " GROUP BY 1, 2 ORDER BY 1"
+
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 
@@ -132,7 +176,6 @@ def get_tasks_by_type():
     traces = []
     for code, data in type_data.items():
         y_values = [data.get(dt, 0) for dt in all_dates]
-        # traces.append(go.Scatter(x=all_dates, y=y_values, mode='lines+markers', name=code))
         traces.append(go.Scatter(
             x=all_dates,
             y=y_values,
@@ -140,24 +183,39 @@ def get_tasks_by_type():
             name=code,
             hovertemplate='Дата: %{x}<br>Задач: %{y}<br>Тип: %{meta}',
             meta=[code] * len(all_dates)
-            # customdata=[code] * len(all_dates),
-            # hovertemplate='Дата: %{x}<br>Задач: %{y}<br>Тип: %{customdata}',
-            # meta={'taskType': code}
         ))
 
     layout = go.Layout(
         title='Количество задач по дням в разбивке по типу задачи',
         xaxis=dict(title='Дата'),
-        yaxis=dict(title='Кол-во задач')
+        yaxis=dict(title='Кол-во задач'),
+        width=1024
     )
 
     return go.Figure(data=traces, layout=layout)
 
 
+def get_filter_options():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    versions = [row[0] for row in cursor.execute('''
+                                            SELECT DISTINCT pps.app_version
+                                            FROM program_product_session pps
+                                            ORDER BY pps.app_version
+                                        ''').fetchall()]
+    task_types = [row[0] for row in cursor.execute('''
+                                            SELECT DISTINCT del.task_type_code
+                                            FROM orig_delivery del
+                                            ORDER BY del.task_type_code
+                                        ''').fetchall()]
+    conn.close()
+    return versions, task_types
+
+
 @app.route('/seed')
 def seed_route():
     seed()
-    return 'Data loaded successfully'
+    return "База данных перегенерирована!"
 
 
 @app.route('/get_versions')
@@ -183,49 +241,30 @@ def get_task_types():
 @app.route('/')
 def home():
     logger.info('Processing request to home page')
-    fig1 = get_sessions_by_version()
-    fig2 = get_transaction_sums()
-    fig3 = get_tasks_by_type()
+
+    version_filter = request.args.get('version')
+    task_type_filter = request.args.get('task_type')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    fig1 = get_sessions_by_version(version_filter, date_from, date_to)
+    fig2 = get_transaction_sums(date_from, date_to)
+    fig3 = get_tasks_by_type(task_type_filter, date_from, date_to)
 
     # Получаем список версий и типов задач
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT DISTINCT app_version FROM program_product_session")
-    versions = [row['app_version'] for row in cursor.fetchall()]
-
-    cursor.execute("SELECT DISTINCT task_type_code FROM orig_delivery")
-    task_types = [row['task_type_code'] for row in cursor.fetchall()]
-
-    conn.close()
+    versions, task_types = get_filter_options()
 
     return render_template('index.html',
                            graph1=json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder),
                            graph2=json.dumps(fig2, cls=plotly.utils.PlotlyJSONEncoder),
                            graph3=json.dumps(fig3, cls=plotly.utils.PlotlyJSONEncoder),
                            versions=versions,
-                           task_types=task_types)
+                           task_types=task_types,
+                           selected_version=version_filter,
+                           selected_task_type=task_type_filter,
+                           selected_date_from=date_from,
+                           selected_date_to=date_to)
 
-
-# def is_db_empty():
-#     conn = get_db_connection()
-#     cursor = conn.cursor()
-#     cursor.execute("SELECT COUNT(*) FROM client_x_account")
-#     count = cursor.fetchone()[0]
-#     conn.close()
-#     return count == 0
-
-
-# if __name__ == '__main__':
-#     if not os.path.exists('my_database.db'):  # Путь к базе данных
-#         logger.info('Файл базы данных не найден, создаем и заполняем...')
-#         seed()
-#     elif is_db_empty():
-#         logger.info('База пуста — заполняем seed-данными...')
-#         seed()
-#     else:
-#         logger.info('База уже содержит данные, пропускаем seed')
-#     app.run(debug=True)
 
 if __name__ == '__main__':
     logger.info('Filling the database with synthetic data...')
