@@ -192,6 +192,7 @@ def seed():
         datetime(2025, 2, 23).date(),
         datetime(2025, 3, 8).date(),
         datetime(2025, 5, 1).date(),
+        datetime(2025, 5, 9).date()
     }
 
     # financial_transaction (по 64 транзакций на аккаунт)

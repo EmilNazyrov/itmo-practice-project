@@ -88,6 +88,7 @@ def get_transaction_sums(date_from=None, date_to=None, alpha=0.2):
                 DATE(ftr.transaction_dttm) as dt,
                 SUM(ftr.transaction_amt) as total
             FROM financial_transaction ftr
+            WHERE 1 = 1
         """
 
     params = []

@@ -108,6 +108,25 @@ body {
     color: white;
 }
 
+.graph-wrapper {
+    margin-bottom: 30px;
+    text-align: right;
+}
+
+.export-btn {
+    margin-top: 10px;
+    padding: 6px 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.export-btn:hover {
+    background-color: #45a049;
+}
+
 #theme-toggle {
     cursor: pointer;
     margin-top: 20px;
@@ -138,50 +157,80 @@ body {
 }
 
 /* Стили для фильтра по дате */
+.filter-group {
+    margin-bottom: 16px;
+}
+
 .filter-group label {
     display: block;
-    margin-top: 16px;
+    margin-top: 10px;
     font-weight: bold;
     font-size: 14px;
 }
 
-.filter-group input[type="date"] {
-    width: 100%;
-    padding: 6px;
-    margin-top: 6px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
+.filter-group input[type="date"],
+.filter-group select {
     font-size: 14px;
-}
-
-.dark-theme .filter-group input[type="date"] {
-    background-color: #444;
-    color: #eee;
-    border: 1px solid #666;
 }
 
 /* Кнопка сброса фильтров */
-#reset-filters {
-    margin-top: 20px;
+.filter-group button {
     width: 100%;
     padding: 10px;
-    background-color: #e74c3c;
+    background-color: #444;
     color: white;
-    font-weight: bold;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
 }
 
-#reset-filters:hover {
-    background-color: #c0392b;
+.filter-group button:hover {
+    background-color: #d32f2f;
 }
 
-.dark-theme #reset-filters {
-    background-color: #aa2e2e;
+.dark-theme .filter-group button {
+    background-color: #444;
 }
 
-.dark-theme #reset-filters:hover {
-    background-color: #912222;
+.dark-theme .filter-group button:hover {
+    background-color: #d32f2f;
+}
+
+/* Стилизация скроллбара */
+#sidebar::-webkit-scrollbar,
+.main-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+#sidebar::-webkit-scrollbar-track,
+.main-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#sidebar::-webkit-scrollbar-thumb,
+.main-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover,
+.main-content::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.dark-theme #sidebar::-webkit-scrollbar-track,
+.dark-theme .main-content::-webkit-scrollbar-track {
+    background: #333;
+}
+
+.dark-theme #sidebar::-webkit-scrollbar-thumb,
+.dark-theme .main-content::-webkit-scrollbar-thumb {
+    background: #666;
+}
+
+.dark-theme #sidebar::-webkit-scrollbar-thumb:hover,
+.dark-theme .main-content::-webkit-scrollbar-thumb:hover {
+    background: #888;
 }
